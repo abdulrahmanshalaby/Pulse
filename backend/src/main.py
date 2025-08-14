@@ -5,10 +5,14 @@ from fastapi.routing import APIRoute
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session, selectinload
 from Models.tweets import Tweet, User, Timeline, Hashtag, tweet_hashtag, Base, userinput, useroutput
-# from utils import extract_mentions, extract_hashtags
 from authorization.auth import create_access_token, hash_password, verify_password
 from dependencies.dependencies import get_current_user
-from database.database import get_db  # your session factory
+from database.database import create_tables, get_db 
+from routes.comments import router as commentsrouter
+from routes.tweets import router as tweetsrouter
+from routes.user import router as usersrouter
+
+
 import json
 import redis
 REDIS_URL = "redis://localhost:6379"
@@ -17,8 +21,10 @@ REDIS_URL = "redis://localhost:6379"
 redis_client = redis.Redis()  # sync redis; for async use redis.asyncio
 
 app = FastAPI()
-router=APIRouter()
-app.include_router(router)
+app.include_router(usersrouter)
+app.include_router(tweetsrouter)
+app.include_router(commentsrouter)
+create_tables()
 
 # def fanout_to_followers(db: Session, tweet_id: int, author_id: int):
 #     # naive: find followers and insert Timeline entries
@@ -104,32 +110,3 @@ def get_timeline(user_id: int, db: Session = Depends(get_db), limit: int = 50, o
 #         await pubsub.unsubscribe(f"feed:{user_id}")
 #         await pubsub.close()
 #         await redis.close()
-@app.post("/register", response_model=useroutput)
-def register(user_data: userinput, db: Session = Depends(get_db)):
-    existing_user = db.query(User).filter(User.username == user_data.username).first()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Username already exists")
-
-    hashed_pwd = hash_password(user_data.password)
-    new_user = User(
-        username=user_data.username,
-        email=user_data.email,
-        hashed_password=hashed_pwd
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    return new_user
-
-@app.post("/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(status_code=400, detail="Invalid credentials")
-
-    access_token = create_access_token(data={"sub": user.username})
-    return {"access_token": access_token, "token_type": "bearer"}
-
-@app.get("/me", response_model=useroutput)
-def get_me(current_user: User = Depends(get_current_user)):
-    return current_user

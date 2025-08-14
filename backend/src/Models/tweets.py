@@ -1,6 +1,7 @@
 import datetime
+import enum
 import string
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, Nullable, String, Table, UniqueConstraint, column, false
 from database.database import base
@@ -18,64 +19,6 @@ likes_table = Table(
 
 
 
-class userinput(BaseModel):
-
-    username:str
-    password:str
-
-class useroutput(BaseModel):
-    id : int
-    username:str
-    gender:str
-    age:str
-    bio:str
-    tweets: List["Tweetoutput"] = [] 
-    followers_count: int
-    following_count: int
-
-    class Config:
-        orm_mode = True
-
-
-class CommentRead(BaseModel):
-    id: int
-    content: str
-    created_at: datetime
-    user: useroutput  # commenter info
-
-    class Config:
-        orm_mode = True
-class LikeRead(BaseModel):
-    user: useroutput  # user who liked
-
-    class Config:
-        orm_mode = True
-
-class Tweetoutput(BaseModel):
-    id: int
-    content: str
-    created_at: datetime
-    user: useroutput
-    class Config:
-        orm_mode = True
-
-
-
-class TweetWithComments(Tweetoutput):
-    comments: List[CommentRead] = []
-
-class TweetWithLikes(Tweetoutput):
-    likers: List[useroutput] = []
-
-class TweetWithLikesAndComments(TweetWithLikes):
-    comments: List[CommentRead] = []
-class Retweetoutput(BaseModel):
-    id: int
-    created_at: datetime
-    tweet: Tweetoutput  # the original tweet that was reposted
-
-    class Config:
-        orm_mode = True
 
 
 class Tweet(base):
@@ -146,5 +89,32 @@ class Timeline(base):
     tweet_id = Column(Integer, ForeignKey("tweets.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-useroutput.model_rebuild()
-Tweetoutput.model_rebuild()
+class MediaType(str, enum.Enum):
+    IMAGE = "image"
+    VIDEO = "video"
+
+
+class Media(base):
+    __tablename__ = "media"
+
+    id = Column(Integer, primary_key=True, index=True)
+    file_url = Column(String, nullable=False)
+    file_type = Column(String, nullable=False)  # e.g., image/png, video/mp4
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class MediaAttachment(base):
+    """
+    Links a media item to any entity (tweet, DM, user profile pic).
+    Uses 'target_type' to know what entity it belongs to.
+    """
+    __tablename__ = "media_attachments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    media_id = Column(Integer, ForeignKey("media.id", ondelete="CASCADE"), nullable=False)
+    target_type = Column(String, nullable=False)  # 'tweet', 'dm', 'user_avatar'
+    target_id = Column(Integer, nullable=False)   # ID of Tweet, DM, or User
+
+    media = relationship("Media")
+
+
