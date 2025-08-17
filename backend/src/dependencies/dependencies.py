@@ -1,11 +1,28 @@
+import json
+import os
+from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
+from kafka import KafkaProducer
+from redis import Redis
 from sqlalchemy.orm import Session
+import redis.asyncio as aioredis 
+
 
 from Models.tweets import User
 from authorization import auth
 from database.database import SessionLocal
+from dotenv import load_dotenv
+load_dotenv
+
+REDIS_HOST = os.getenv("REDIS_HOST")
+REDIS_PORT = int(os.getenv("REDIS_PORT"))
+REDIS_DB = int(os.getenv("REDIS_DB"))
+KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP")
+TOPIC_NOTIFICATIONS = os.getenv("TOPIC_NOTIFICATIONS")
+
+_producer: KafkaProducer | None = None
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 def get_db():
@@ -32,3 +49,26 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None:
         raise credentials_exception
     return user
+
+def get_redis_sync() -> Redis:
+    return Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
+
+def get_redis_async() -> aioredis.Redis:
+    return aioredis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
+
+def get_kafka_producer() -> KafkaProducer:
+    global _producer
+    if _producer is None:
+        _producer = KafkaProducer(
+            bootstrap_servers=[KAFKA_BOOTSTRAP],
+            value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+            retries=5,
+        )
+    return _producer
+
+
+
+def publish_notification(payload: dict, topic: str = TOPIC_NOTIFICATIONS):
+    producer = get_kafka_producer()
+    producer.send(topic, value=payload)
+# ...existing code...

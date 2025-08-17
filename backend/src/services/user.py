@@ -1,31 +1,49 @@
 from pydantic import create_model
-from backend.src.repository.media import add_media
-from backend.src.repository.media_attachment import attach_media
-import repository.user as user_repo
+from authorization.auth import hash_password
+from repository.user import UserRepository
+from schemas.schemas import userinput
+from repository.media_attachment import MediaRepository
 from sqlalchemy.orm import Session 
-def get_user_profile(db:Session, user_id: int):
-    user = user_repo.get_user_by_id(db, user_id)
-    if not user:
-        raise Exception("User not found")
-    return user
+class UserService:
+    def __init__(self, db: Session):
+        self.db = db
+    def get_user_profile(self, user_id: int):
+        user_repo = UserRepository(self.db)
+        user = user_repo.get_user_by_id(user_id)
+        if not user:
+         raise Exception("User not found")
+        return user
 
-def register_user(db: Session, data: dict):
-    username = data.get("username")
-    password = data.get("password")
-    avatar_url = data.get("avatar_url")  # optional, from pre-signed upload
+    def register_user(self, data: userinput):
+      user_repo = UserRepository(self.db)
+      media_repo = MediaRepository(self.db)
 
-    if not username or not password:
+    # Validate input
+      if not data.username or not data.password:
         raise ValueError("Username and password are required")
 
+    # Check if username already exists
+      existing_user = user_repo.get_user_by_username(data.username)
+      if existing_user:
+        raise ValueError("Username already exists")
+
+    # Handle avatar_url
+      data.avatar_url = data.avatar_url or None
+ # optional, from pre-signed upload
+
+      if not data.username or not data.password:
+        raise ValueError("Username and password are required")
     # 1️⃣ Create user
-    user = user_repo.create_user(db, username=username, password=password)
+      user = user_repo.create_user(data)
+      self.db.commit()
+      self.db.refresh(user)
 
     # 2️⃣ If avatar provided, create media and attach
     # Attach media if any
-    target_type="user"
-    if avatar_url:
-       medias=add_media(db, avatar_url)
-    for media in medias:
-        attach_media(db, media.id, target_type, target_id=user.id)
-    db.commit()
-    return {"user_id": user.id, "username": user.username, "avatar_url": avatar_url}
+      target_type="user"
+      if data.avatar_url:
+       medias=media_repo.add_media(data.avatar_url)
+       for media in medias:
+         media_repo.attach_media(media.id, target_type, target_id=user.id)
+      self.db.commit()
+      return user

@@ -1,4 +1,4 @@
-import datetime
+from  datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel
@@ -16,6 +16,7 @@ class userinput(BaseModel):
 
     username:str
     password:str
+    avatar_url:Optional[str]=None
 
 
 
@@ -47,14 +48,16 @@ class TweetMinimal(BaseModel):
     id: int
     content: str
     created_at: datetime
-    likers_count: int
+    likers_count: Optional[int]=0 
+    # media_urls: List[str]=[]
+
 
     class Config:
         orm_mode = True
 
 class TweetWithComments(TweetMinimal):
     comments: List[CommentMinimal] = []
-
+   
 class UserWithTweets(useroutput):
     tweets: List[TweetMinimal] = []
 
@@ -78,5 +81,12 @@ class FinalizeUploadResponse(BaseModel):
 class CreateTweetRequest(BaseModel):
     text: Optional[str]
     media_ids: Optional[List[int]] = []
+    
+class TimelineResponse(BaseModel):
+    tweet: dict
+    added_at: Optional[datetime] = None
+
+    class Config:
+        orm_mode = True
 
 useroutput.model_rebuild()

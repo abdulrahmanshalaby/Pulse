@@ -1,29 +1,71 @@
 
 
 from fastapi import Depends,APIRouter, HTTPException,status
-from schemas.schemas import User, UserMinimal
-from backend.src.services.follow import follow_service
-from services.user import get_user_profile
-from dependencies.dependencies import get_current_user, get_db
+from redis import Redis
+from Models.tweets import User
+from schemas.schemas import UserMinimal
+from services.follow import FollowService
+from services.user import UserService
+from dependencies.dependencies import get_current_user, get_db, get_redis_sync
 from sqlalchemy.orm import Session
 
 router=APIRouter(prefix="/api/follow",tags=["follows"])
+@router.post("/")
+def follow_user(user:UserMinimal, db:Session=Depends(get_db), current_user:User=Depends(get_current_user), redis_client:Redis=Depends(get_redis_sync)):
+    follow_service = FollowService(db, redis_client)
+    user_service = UserService(db)
 
-def follow_user(user:UserMinimal,db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
-    target_user=get_user_profile(db,user.id)
+    # validate target user exists
+    target_user = user_service.get_user_profile(user.id)
     if not target_user:
-        raise HTTPException(404, "User not found")
-    if current_user.id == user.id:
-        raise ValueError("You cannot follow yourself")
+        raise HTTPException(status_code=404, detail="User not found")
 
-    # Check if already following (assume current_user.following is a list of User ORM objects)
-    if any(followed.id == user.id for followed in current_user.following):
-        raise ValueError("Already following this user")
- 
+    # cannot follow yourself
+    if current_user.id == user.id:
+        raise HTTPException(status_code=400, detail="You cannot follow yourself")
+
+    # check if already following (use service/repo)
     try:
-        follow_service(user,db,current_user)
-        db.commit()  # commit once after all service logic
-        return {"message": f"Followed user {target_user.username}"}
-    except:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,detail=f"Couldn't Follow{user.username}, Please try again" )
+        following = follow_service.get_following(current_user.id)
+        if any(f.id == user.id for f in following):
+            raise HTTPException(status_code=400, detail="Already following this user")
+    except HTTPException:
+        raise
+    except Exception:
+        # if the quick check fails, continue and let follow_service handle duplicates
+        pass
+
+    try:
+        # follow_service will perform DB write and commit; keep route thin
+        result = follow_service.follow_service(user, current_user)
+        return result
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        # rollback if something escaped (safety)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail="Internal server error")
+@router.get("/followers}", response_model=list[UserMinimal])   
+def get_followers(db: Session = Depends(get_db),current_user:User=Depends(get_current_user), redis_client: Redis = Depends(get_redis_sync)):
+    follow_service = FollowService(db, redis_client)
+    try:
+        followers = follow_service.get_followers(current_user.id)
+        return followers
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal server error")
     
+@router.get("/following", response_model=list[UserMinimal])
+def get_following(db: Session = Depends(get_db),current_user:User=Depends(get_current_user) ,redis_client: Redis = Depends(get_redis_sync)):
+    follow_service = FollowService(db, redis_client)
+    try:
+        following = follow_service.get_following(current_user.id)
+        return following
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal server error")

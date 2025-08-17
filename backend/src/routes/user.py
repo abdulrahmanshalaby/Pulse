@@ -2,15 +2,23 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from schemas.schemas import UserWithTweets
+from services.user import UserService
+from schemas.schemas import UserMinimal, UserWithTweets
 from dependencies.dependencies import get_db
-from services.user import get_user_profile
 
 
 router=APIRouter(prefix="/api/user",tags=["users"])
-@router.get("/users/{user_id}", response_model=UserWithTweets)
+@router.get("/users/{user_id}", response_model=UserMinimal)
 def read_user(user_id: int, db: Session = Depends(get_db)):
+    user_service = UserService(db)
+    # Fetch user profile by user_id
+    if user_id <= 0:
+        raise HTTPException(status_code=400, detail="Invalid user ID")
+    if user_id == 0:
+        raise HTTPException(status_code=400, detail="User ID cannot be zero")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User ID is required")
     try:
-        return get_user_profile(db, user_id)
+        return user_service.get_user_profile(user_id)
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))

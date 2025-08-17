@@ -1,30 +1,42 @@
 # main.py
-import asyncio
-from fastapi import APIRouter, FastAPI, Depends, BackgroundTasks, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.routing import APIRoute
-from fastapi.security import OAuth2PasswordRequestForm
+import json
+import os
+from dotenv import load_dotenv
+from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session, selectinload
-from Models.tweets import Tweet, User, Timeline, Hashtag, tweet_hashtag, Base, userinput, useroutput
-from authorization.auth import create_access_token, hash_password, verify_password
-from dependencies.dependencies import get_current_user
-from database.database import create_tables, get_db 
+from Models.tweets import Tweet, Timeline 
+from utils.utils import _get_current_user_from_token
+from dependencies.dependencies import  get_db ,get_current_user, get_redis_async, get_redis_sync
+from database.database import create_tables
+from kafka import KafkaProducer
 from routes.comments import router as commentsrouter
+from routes.timeline import router as timelinerouter
 from routes.tweets import router as tweetsrouter
 from routes.user import router as usersrouter
+from routes.auth import router as authrouter
+import asyncio
+from routes.follows import router as followsrouter
+from routes.media import router as media_router
+from redis import Redis
+CACHE_TTL_SECONDS = 60
 
 
-import json
-import redis
-REDIS_URL = "redis://localhost:6379"
-
-
-redis_client = redis.Redis()  # sync redis; for async use redis.asyncio
 
 app = FastAPI()
+load_dotenv() 
+app.include_router(authrouter)
 app.include_router(usersrouter)
 app.include_router(tweetsrouter)
 app.include_router(commentsrouter)
+app.include_router(followsrouter)
+app.include_router(timelinerouter)
+app.include_router(media_router)
 create_tables()
+
+
+
+
+# async client for websockets
 
 # def fanout_to_followers(db: Session, tweet_id: int, author_id: int):
 #     # naive: find followers and insert Timeline entries
@@ -110,3 +122,34 @@ def get_timeline(user_id: int, db: Session = Depends(get_db), limit: int = 50, o
 #         await pubsub.unsubscribe(f"feed:{user_id}")
 #         await pubsub.close()
 #         await redis.close()
+@app.websocket("/ws/notifications")
+async def notifications_ws(websocket: WebSocket,db:Session=Depends(get_db), redis_client: Redis = Depends(get_redis_async)):
+    auth_header = websocket.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        await websocket.close(code=1008)
+        return
+    token = auth_header.split(" ")[1]
+    try:
+        user = _get_current_user_from_token(token,db)  
+    except Exception:
+        await websocket.close(code=1008)
+        return
+    await websocket.accept()
+    pubsub = redis_client.pubsub()
+    channel = f"notifications:{user.id}"
+    await pubsub.subscribe(channel)
+
+    try:
+        while True:
+            message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+            if message and message.get("data"):
+                data = message["data"]
+                if not isinstance(data, str):
+                    data = json.dumps(data)
+                await websocket.send_text(data)
+            await asyncio.sleep(0.01)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await pubsub.unsubscribe(channel)
+        await pubsub.close()

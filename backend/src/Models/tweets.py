@@ -1,9 +1,10 @@
-import datetime
+from datetime import datetime
 import enum
+from optparse import BadOptionError
 import string
 from typing import List, Optional
 from pydantic import BaseModel
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, Nullable, String, Table, UniqueConstraint, column, false
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, UniqueConstraint, column, false
 from database.database import base
 from sqlalchemy.orm import relationship
 
@@ -24,7 +25,8 @@ likes_table = Table(
 class Tweet(base):
     __tablename__ = "tweets"
     id = Column(Integer, primary_key=True)
-    content=column(string,Nullable=False)
+    content=Column(String,nullable=False)
+    user_id =Column(Integer,ForeignKey("users.id"),nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     user = relationship("User", back_populates="tweets")
     likers = relationship("User", secondary=likes_table, back_populates="liked_tweets")
@@ -56,7 +58,7 @@ class Follow(base):
     following = relationship("User", foreign_keys=[following_id], back_populates="followers")  
 
 class User(base):
-   __tablename__="Users"
+   __tablename__="users"
    id = Column(Integer, primary_key=True, index=True)
    username = Column(String, unique=True, index=True, nullable=False)
    hashed_password = Column(String, nullable=False)
@@ -95,7 +97,7 @@ class MediaType(str, enum.Enum):
 
 
 class Media(base):
-    __tablename__ = "media"
+    __tablename__ = "medias"
 
     id = Column(Integer, primary_key=True, index=True)
     file_url = Column(String, nullable=False)
@@ -111,10 +113,17 @@ class MediaAttachment(base):
     __tablename__ = "media_attachments"
 
     id = Column(Integer, primary_key=True, index=True)
-    media_id = Column(Integer, ForeignKey("media.id", ondelete="CASCADE"), nullable=False)
+    media_id = Column(Integer, ForeignKey("medias.id", ondelete="CASCADE"), nullable=False)
     target_type = Column(String, nullable=False)  # 'tweet', 'dm', 'user_avatar'
     target_id = Column(Integer, nullable=False)   # ID of Tweet, DM, or User
 
     media = relationship("Media")
 
-
+class Comment(base):
+    __tablename__ = "comments"
+    id = Column(Integer, primary_key=True)
+    content=Column(String,nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    user_id=Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    tweet_id=Column(Integer, ForeignKey("tweets.id", ondelete="CASCADE"), nullable=False)
+    
