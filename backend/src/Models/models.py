@@ -1,88 +1,29 @@
-import datetime
+from datetime import datetime
+import enum
+from optparse import BadOptionError
 import string
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, Nullable, String, Table, UniqueConstraint, column, false
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, UniqueConstraint, column, false
 from database.database import base
 from sqlalchemy.orm import relationship
-
 
 likes_table = Table(
     "likes",
     base.metadata,
-    Column("user_id", Integer, ForeignKey("users.id")),
-    Column("tweet_id", Integer, ForeignKey("tweets.id"))
+    Column("user_id", Integer, ForeignKey("users.id"), primary_key=True),
+    Column("tweet_id", Integer, ForeignKey("tweets.id"), primary_key=True),
 )
 
-
-
-
-
-class userinput(BaseModel):
-
-    username:str
-    password:str
-
-class useroutput(BaseModel):
-    id : int
-    username:str
-    gender:str
-    age:str
-    bio:str
-    tweets: List["Tweetoutput"] = [] 
-    followers_count: int
-    following_count: int
-
-    class Config:
-        orm_mode = True
-
-
-class CommentRead(BaseModel):
-    id: int
-    content: str
-    created_at: datetime
-    user: useroutput  # commenter info
-
-    class Config:
-        orm_mode = True
-class LikeRead(BaseModel):
-    user: useroutput  # user who liked
-
-    class Config:
-        orm_mode = True
-
-class Tweetoutput(BaseModel):
-    id: int
-    content: str
-    created_at: datetime
-    user: useroutput
-    class Config:
-        orm_mode = True
-
-
-
-class TweetWithComments(Tweetoutput):
-    comments: List[CommentRead] = []
-
-class TweetWithLikes(Tweetoutput):
-    likers: List[useroutput] = []
-
-class TweetWithLikesAndComments(TweetWithLikes):
-    comments: List[CommentRead] = []
-class Retweetoutput(BaseModel):
-    id: int
-    created_at: datetime
-    tweet: Tweetoutput  # the original tweet that was reposted
-
-    class Config:
-        orm_mode = True
 
 
 class Tweet(base):
     __tablename__ = "tweets"
     id = Column(Integer, primary_key=True)
-    content=column(string,Nullable=False)
+    content=Column(String,nullable=False)
+    user_id =Column(Integer,ForeignKey("users.id"),nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    likes_count=Column(Integer, default=0)
     user = relationship("User", back_populates="tweets")
     likers = relationship("User", secondary=likes_table, back_populates="liked_tweets")
 
@@ -113,7 +54,7 @@ class Follow(base):
     following = relationship("User", foreign_keys=[following_id], back_populates="followers")  
 
 class User(base):
-   __tablename__="Users"
+   __tablename__="users"
    id = Column(Integer, primary_key=True, index=True)
    username = Column(String, unique=True, index=True, nullable=False)
    hashed_password = Column(String, nullable=False)
@@ -146,5 +87,39 @@ class Timeline(base):
     tweet_id = Column(Integer, ForeignKey("tweets.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-useroutput.model_rebuild()
-Tweetoutput.model_rebuild()
+class MediaType(str, enum.Enum):
+    IMAGE = "image"
+    VIDEO = "video"
+
+
+class Media(base):
+    __tablename__ = "medias"
+
+    id = Column(Integer, primary_key=True, index=True)
+    file_url = Column(String, nullable=False)
+    file_type = Column(String, nullable=False)  # e.g., image/png, video/mp4
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class MediaAttachment(base):
+    """
+    Links a media item to any entity (tweet, DM, user profile pic).
+    Uses 'target_type' to know what entity it belongs to.
+    """
+    __tablename__ = "media_attachments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    media_id = Column(Integer, ForeignKey("medias.id", ondelete="CASCADE"), nullable=False)
+    target_type = Column(String, nullable=False)  # 'tweet', 'dm', 'user_avatar'
+    target_id = Column(Integer, nullable=False)   # ID of Tweet, DM, or User
+
+    media = relationship("Media")
+
+class Comment(base):
+    __tablename__ = "comments"
+    id = Column(Integer, primary_key=True)
+    content=Column(String,nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    user_id=Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    tweet_id=Column(Integer, ForeignKey("tweets.id", ondelete="CASCADE"), nullable=False)
+    
