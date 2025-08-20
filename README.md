@@ -4,7 +4,6 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.100.0-green)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-blue)
 ![Docker](https://img.shields.io/badge/Docker-informational)
-![Kafka](https://img.shields.io/badge/Kafka-2.8-yellow)
 ![AWS S3](https://img.shields.io/badge/AWS_S3-orange)
 
 Pulse is a **Twitter-like backend API** built with FastAPI, SQLAlchemy, and PostgreSQL.  
@@ -17,7 +16,6 @@ It demonstrates modern backend practices including **event-driven architecture, 
 - Twitter-like backend with JWT authentication  
 - Real-time updates via **WebSockets**  
 - Media storage on **AWS S3**  
-- Event-driven architecture with **Kafka**  
 - Dockerized for local development and testing  
 
 ---
@@ -29,7 +27,6 @@ It demonstrates modern backend practices including **event-driven architecture, 
 - **SQLAlchemy** – ORM for PostgreSQL  
 - **PostgreSQL** – relational database  
 - **Redis** – optional caching layer  
-- **Kafka** – event streaming  
 - **AWS S3** – media storage  
 - **Docker** – containers for DB and services  
 ---
