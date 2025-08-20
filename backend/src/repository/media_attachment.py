@@ -1,4 +1,4 @@
-from Models.tweets import Media, MediaAttachment
+from Models.models import Media, MediaAttachment
 from sqlalchemy.orm import Session
 class MediaRepository:
     def __init__(self, db: Session):

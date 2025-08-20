@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session 
 from services.user import UserService
 from schemas.schemas import UserMinimal, userinput,useroutput
-from Models.tweets import User
+from Models.models import User
 from authorization.auth import create_access_token ,verify_password
 from dependencies.dependencies import get_db
 from dependencies.dependencies import get_current_user
@@ -35,7 +35,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
     # Check if user exists and password is correct
     user = db.query(User).filter(User.username == form_data.username).first()
     if not user or not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(status_code=400, detail="Invalid credentials")
+        raise HTTPException(status_code=401, detail="Invalid credentials")
 
     access_token = create_access_token(data={"sub": user.username})
     return {"access_token": access_token, "token_type": "bearer"}

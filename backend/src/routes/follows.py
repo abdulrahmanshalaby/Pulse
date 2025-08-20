@@ -2,7 +2,7 @@
 
 from fastapi import Depends,APIRouter, HTTPException,status
 from redis import Redis
-from Models.tweets import User
+from Models.models import User
 from schemas.schemas import UserMinimal
 from services.follow import FollowService
 from services.user import UserService

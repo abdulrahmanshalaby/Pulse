@@ -1,7 +1,7 @@
 import uuid
 from sqlalchemy.orm import Session
 import os
-from Models.tweets import Media
+from Models.models import Media
 from dotenv import load_dotenv
 load_dotenv() 
 try:

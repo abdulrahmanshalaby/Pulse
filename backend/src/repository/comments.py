@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from Models.tweets import Comment
+from Models.models import Comment
 from schemas.schemas import commentinput
 class CommentRepository:
     def __init__(self, db: Session):

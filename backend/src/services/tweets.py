@@ -1,4 +1,6 @@
 import json
+import os
+from re import M
 from fastapi import HTTPException,status
 from redis import Redis
 from requests import Session
@@ -6,14 +8,14 @@ from dependencies.dependencies import publish_notification
 from repository.tweet import tweetRepository
 from repository.media_attachment import MediaRepository
 from schemas.schemas import tweetinput
-
+MAX_NOTIFICATIONS = os.getenv("MAX_NOTIFICATIONS")
 class TweetService:
     def __init__(self, db:Session,redis_client:Redis):
         self.db = db
         self.redis_client=redis_client
-    def get_tweet(self, tweet_id: int):
+    def get_tweet(self, tweet_id: int, current_user_id: int = None):
       tweet_repo = tweetRepository(self.db)
-      tweet = tweet_repo.get_tweet_by_id(tweet_id)
+      tweet = tweet_repo.get_tweet_by_id(tweet_id,current_user_id)
       if not tweet:
         raise Exception("Tweet not found")
       return tweet
@@ -24,7 +26,7 @@ class TweetService:
         tweet_repo = tweetRepository(self.db)
         return tweet_repo.get_tweets_by_user(user_id)
 
-    def post_tweet(self, tweet:tweetinput , user_id: int):
+    async def post_tweet(self, tweet:tweetinput , user_id: int):
       tweet_repo = tweetRepository(self.db)
       media_repo = MediaRepository(self.db)
       content = tweet.content
@@ -55,26 +57,21 @@ class TweetService:
             "content_preview": (tweet.content or "")[:200],
         }
 
-        # 1) Redis pub/sub (lightweight, immediate)
+        
       try:
-            # publish to followers' channels or a general notifications channel.
-            # Example: publish to "notifications:{follower_id}" for each follower in fanout logic
-            # For now publish to a generic channel for background consumers
+ 
             followers =self.redis_client.smembers(f"followers:{user_id}")
 
     # Publish to each follower's channel
             for follower_id in followers:
              self.redis_client.publish(f"notifications:{follower_id}", json.dumps(payload))
+             await self.redis_client.rpush(f"notifications_list:{follower_id}", json.dumps(payload))
+             await self.redis_client.ltrim(f"notifications_list:{follower_id}", -MAX_NOTIFICATIONS, -1)
 
       except Exception:
             # swallow to avoid breaking API if Redis is down
             pass
 
-        # 2) Kafka (durable stream for async consumers)
-      try:
-            publish_notification(payload)
-      except Exception:
-            pass
 
 
       return tweet

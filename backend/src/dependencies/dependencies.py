@@ -1,5 +1,6 @@
 import json
 import os
+from typing import Optional
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -8,9 +9,7 @@ from kafka import KafkaProducer
 from redis import Redis
 from sqlalchemy.orm import Session
 import redis.asyncio as aioredis 
-
-
-from Models.tweets import User
+from Models.models import User
 from authorization import auth
 from database.database import SessionLocal
 from dotenv import load_dotenv
@@ -71,4 +70,22 @@ def get_kafka_producer() -> KafkaProducer:
 def publish_notification(payload: dict, topic: str = TOPIC_NOTIFICATIONS):
     producer = get_kafka_producer()
     producer.send(topic, value=payload)
-# ...existing code...
+
+
+def get_current_user_optional(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    if not token:  # no token = guest
+        return None
+
+    try:
+        payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            return None
+    except JWTError:
+        return None
+
+    user = db.query(User).filter(User.username == username).first()
+    return user

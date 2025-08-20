@@ -1,15 +1,17 @@
 
 from calendar import c
 import json
+import os
 from fastapi import HTTPException
 from datetime import datetime
 from redis import Redis
 from dependencies.dependencies import publish_notification
 from repository.follow import FollowRepository
 from schemas.schemas import  UserMinimal
-from Models.tweets import User
+from Models.models import User
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+MAX_NOTIFICATIONS = int(os.getenv("MAX_NOTIFICATIONS"))
 
 class FollowService:
     def __init__(self, db: Session,redis_client: Redis):
@@ -60,6 +62,8 @@ class FollowService:
         }
       try:
             self.redis_client.publish(f"notifications:{user.id}", json.dumps(payload))
+            self.redis_client.rpush(f"notifications_list:{user.id}", json.dumps(payload))
+            self.redis_client.ltrim(f"notifications_list:{user.id}", -MAX_NOTIFICATIONS, -1)
       except Exception:
             pass
 

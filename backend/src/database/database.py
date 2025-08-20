@@ -16,12 +16,10 @@ engine = create_engine(
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-
-
-
 base = declarative_base()
 def create_tables():
     try:
+      
       base.metadata.create_all(engine)
       print("tables created")
     except Exception as e:

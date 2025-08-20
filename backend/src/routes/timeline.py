@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends
 from fastapi.params import Depends
 from redis import Redis
 from sqlalchemy.orm import Session
-from Models.tweets import User
+from Models.models import User
 from schemas.schemas import TweetMinimal
 from repository.timeline import TimelineRepository
 from services.timeline import TimelineService
@@ -18,7 +18,7 @@ from dependencies.dependencies import get_current_user, get_db, get_redis_sync
 CACHE_TTL_SECONDS=60
 
 router= APIRouter(prefix="/api/timeline", tags=["timeline"])
-@router.get("/", response_model=List[TweetMinimal])
+@router.get("/")
 def get_user_timeline(
     db: Session = Depends(get_db),
     redis: Redis = Depends(get_redis_sync),

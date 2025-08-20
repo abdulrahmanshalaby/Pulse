@@ -18,9 +18,6 @@ class userinput(BaseModel):
     password:str
     avatar_url:Optional[str]=None
 
-
-
-
 class UserMinimal(BaseModel):
     id: int
     username: str
@@ -48,8 +45,9 @@ class TweetMinimal(BaseModel):
     id: int
     content: str
     created_at: datetime
-    likers_count: Optional[int]=0 
-    # media_urls: List[str]=[]
+    likes_count: int 
+    media_urls: List[str]=[]
+    liked_by_me: bool = False
 
 
     class Config:

@@ -8,17 +8,12 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, Uni
 from database.database import base
 from sqlalchemy.orm import relationship
 
-
 likes_table = Table(
     "likes",
     base.metadata,
-    Column("user_id", Integer, ForeignKey("users.id")),
-    Column("tweet_id", Integer, ForeignKey("tweets.id"))
+    Column("user_id", Integer, ForeignKey("users.id"), primary_key=True),
+    Column("tweet_id", Integer, ForeignKey("tweets.id"), primary_key=True),
 )
-
-
-
-
 
 
 
@@ -28,6 +23,7 @@ class Tweet(base):
     content=Column(String,nullable=False)
     user_id =Column(Integer,ForeignKey("users.id"),nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    likes_count=Column(Integer, default=0)
     user = relationship("User", back_populates="tweets")
     likers = relationship("User", secondary=likes_table, back_populates="liked_tweets")
 

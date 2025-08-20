@@ -1,12 +1,12 @@
-from sqlalchemy import or_
+from sqlalchemy import exists, or_
 from sqlalchemy.orm import Session
-from Models.tweets import Media, MediaAttachment, Tweet
+from Models.models import Media, MediaAttachment, Tweet,likes_table
 from schemas.schemas import tweetinput
 class tweetRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_tweet_by_id(self, tweet_id: int):
+    def get_tweet_by_id(self, tweet_id: int,current_user_id: int = None):
     # Query tweet and media in one go
      result = (
         self.db.query(Tweet, Media)
@@ -21,6 +21,16 @@ class tweetRepository:
 
      tweet = result[0][0]
      tweet.media_files = [media.file_url for _, media in result if media]
+     if current_user_id:
+        liked = (
+            self.db.query(exists().where(
+                (likes_table.c.tweet_id == tweet.id) & (likes_table.c.user_id == current_user_id)
+            ))
+            .scalar()
+        )
+        tweet.liked_by_me = liked
+     else:
+        tweet.liked_by_me = False
      return tweet
     def create_tweet(self, tweet:tweetinput, user_id: int):
      tweet = Tweet(user_id=user_id,content=tweet.content)
