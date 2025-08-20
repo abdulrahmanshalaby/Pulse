@@ -7,7 +7,7 @@
 ![Kafka](https://img.shields.io/badge/Kafka-2.8-yellow)
 ![AWS S3](https://img.shields.io/badge/AWS_S3-orange)
 
-TwClone is a **Twitter-like backend API** built with FastAPI, SQLAlchemy, and PostgreSQL.  
+Pulse is a **Twitter-like backend API** built with FastAPI, SQLAlchemy, and PostgreSQL.  
 It demonstrates modern backend practices including **event-driven architecture, real-time updates, and cloud media storage**, all fully containerized for easy local setup.
 
 ---
